@@ -2,7 +2,7 @@ Lambdo = require('../')
 
 lambdo = new Lambdo()
 
-NUM_RUNS = 1000000
+NUM_RUNS = 100000
 
 var stats = {}
 
