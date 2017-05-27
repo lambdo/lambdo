@@ -10,5 +10,10 @@
   "license": "MIT",
   "devDependencies": {
     "tape": "^4.6.3"
+  },
+  "dependencies": {
+    "async": "^2.4.1",
+    "os-utils": "0.0.14",
+    "pidusage": "^1.1.4"
   }
 }

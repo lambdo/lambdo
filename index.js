@@ -1,5 +1,6 @@
-os = require('os')
-EventEmitter = require('events').EventEmitter
+var os = require('os')
+var pusage = require('pidusage')
+var EventEmitter = require('events').EventEmitter
 
 var Lambdo = function(options) {
   _this = this
@@ -9,9 +10,16 @@ var Lambdo = function(options) {
   this.nextTimeout = this.options.startInterval || 1
 }
 
+Lambdo.prototype.cpuStats = function(callback) {
+  if (false && process.cpuUsage) {
+      callback(null, process.cpuUsage())
+  } else {
+    callback(null, os.cpus())
+  }
+}
+
 Lambdo.prototype.record = function() {
   this.recording = []
-  this.timeout = setTimeout(this.onTimeout, this.nextTimeout)
   this.makeRecord()
 }
 
@@ -22,27 +30,31 @@ Lambdo.prototype.makeRecord = function() {
   }
 
   this.recording.push(item)
-}
 
-Lambdo.prototype.onTimeout = function() {
-  this.makeRecord()
   this.nextTimeout *= this.multiplier
-  this.timeout = setTimeout(this.onTimeout, this.nextTimeout)
+  this.timeout = setTimeout(this.makeRecord, this.nextTimeout)
 }
 
-Lambdo.prototype.collect = function() {
-  var stats = {
-    load: os.loadavg(),
-    cpu: os.cpus(),
-    mem: {
-      free: os.freemem(),
-      total: os.totalmem(),
-    },
-  }
+Lambdo.prototype.collect = function(callback) {
+  var _this = this
+  var promise = new Promise(function(resolve, reject) {
+    _this.cpuStats(function(err, usage) {
+      var stats = {
+        load: os.loadavg(),
+        cpu: usage,
+        mem: {
+          free: os.freemem(),
+          total: os.totalmem(),
+          process: process.memoryUsage()
+        },
+      }
 
-  stats.used = stats.mem.total - stats.mem.used
+      if (callback) callback(err, stats)
+      resolve(stats)
+    })
+  })
 
-  return stats
+  return promise
 }
 
 Lambdo.prototype.cleanup = function() {
@@ -50,14 +62,18 @@ Lambdo.prototype.cleanup = function() {
 }
 
 Lambdo.prototype.handler = function(handler) {
-  var start = new Date().getTime()
+  var _this = this
+
   return function(event, context, callback) {
+    var start = new Date().getTime()
+    _this.record()
 
     var finish = function(err, results) {
       end = new Date().getTime()
       duration = end - start
       console.log("TOTAL DURATION", duration)
-      console.log("RECORDING", this.recording)
+      console.log("RECORDING", JSON.stringify(_this.recording, null, 2))
+      _this.cleanup()
       callback(err, results)
     }
 
