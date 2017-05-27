@@ -1,0 +1,14 @@
+{
+  "name": "lambdo",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/main"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "tape": "^4.6.3"
+  }
+}
