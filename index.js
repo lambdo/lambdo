@@ -97,4 +97,14 @@ Lambdo.prototype.handler = function(handler) {
   }
 }
 
+Lambdo.monitor = function(options, handler) {
+  if (handler === undefined) {
+    handler = options
+    options = {}
+  }
+
+  var lambdo = new Lambdo(options)
+  return lambdo.handler(handler)
+}
+
 module.exports = Lambdo
