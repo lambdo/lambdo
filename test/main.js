@@ -1,7 +1,7 @@
 var test = require('tape')
 var Lambdo = require('../')
 
-test('basic stat collection', function(t) {
+test('basic stats collection', function(t) {
   var lambdo = new Lambdo
   var stats = lambdo.collect()
   lambdo.cleanup()
