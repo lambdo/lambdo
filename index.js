@@ -31,12 +31,34 @@ Lambdo.prototype.onTimeout = function() {
 }
 
 Lambdo.prototype.collect = function() {
+  var cpus = os.cpus()
+  var cpuData = []
+  for (var iCPU=0; iCPU<cpus.length; ++iCPU) {
+    var cpu = cpus[iCPU]
+    var data = {
+      total: 0,
+      usage: {},
+      index: iCPU,
+    }
+
+    for(var type in cpu.times) {
+        data.total += cpu.times[type]
+    }
+
+    for(type in cpu.times) {
+      data.usage[type] = Math.round(100 * cpu.times[type] / data.total)
+    }
+
+    cpuData.push(data)
+  }
+
   var stats = {
     load: os.loadavg(),
-    cpu: os.cpus(),
+    cpu: cpuData,
     mem: {
       free: os.freemem(),
       total: os.totalmem(),
+      process: process.memoryUsage(),
     },
   }
 
