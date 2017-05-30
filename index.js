@@ -90,15 +90,21 @@ Lambdo.prototype.handler = function(handler) {
   var identity = undefined
   var identityCallback = undefined
 
-  this.getIdentity(function(err, results) {
-    identity = results
-    identity.functionName = process.env.AWS_LAMBDA_FUNCTION_NAME
-    if (identityCallback != undefined) {
-      identityCallback()
-    }
-  })
-
   return function(event, context, callback) {
+    _this.getIdentity(function(err, results) {
+      identity = results
+
+      if (context.aws && context.aws.services) {
+        identity.functionName = context.aws.functionName
+      } else {
+        identity.functionName = process.env.AWS_LAMBDA_FUNCTION_NAME
+      }
+
+      if (identityCallback != undefined) {
+        identityCallback()
+      }
+    })
+
     _this.record()
     var start = new Date().getTime()
 
