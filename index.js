@@ -1,5 +1,6 @@
-os = require('os')
-EventEmitter = require('events').EventEmitter
+var os = require('os')
+var AWS = require('aws-sdk')
+var EventEmitter = require('events').EventEmitter
 
 var Lambdo = function(options) {
   _this = this
@@ -10,8 +11,9 @@ var Lambdo = function(options) {
 }
 
 Lambdo.prototype.record = function() {
+  _this = this
   this.recording = []
-  this.timeout = setTimeout(this.onTimeout, this.nextTimeout)
+  this.timeout = setTimeout(function() {_this.makeRecord()}, this.nextTimeout)
   this.makeRecord()
 }
 
@@ -25,9 +27,10 @@ Lambdo.prototype.makeRecord = function() {
 }
 
 Lambdo.prototype.onTimeout = function() {
+  _this = this
   this.makeRecord()
   this.nextTimeout *= this.multiplier
-  this.timeout = setTimeout(this.onTimeout, this.nextTimeout)
+  this.timeout = setTimeout(function() {_this.makeRecord()}, this.nextTimeout)
 }
 
 Lambdo.prototype.collect = function() {
@@ -59,10 +62,11 @@ Lambdo.prototype.collect = function() {
       free: os.freemem(),
       total: os.totalmem(),
       process: process.memoryUsage(),
+      provisioned: process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE,
     },
   }
 
-  stats.used = stats.mem.total - stats.mem.used
+  stats.mem.used = stats.mem.total - stats.mem.free
 
   return stats
 }
@@ -71,16 +75,83 @@ Lambdo.prototype.cleanup = function() {
   clearTimeout(this.timeout)
 }
 
+Lambdo.prototype.getIdentity = function(callback) {
+  var STS = new AWS.STS({
+    region: process.env.AWS_REGION || 'us-east-1'
+  })
+
+  STS.getCallerIdentity({}, function(err, results) {
+    callback(err, results)
+  })
+}
+
 Lambdo.prototype.handler = function(handler) {
-  var start = new Date().getTime()
+  var _this = this
+  var identity = undefined
+  var identityCallback = undefined
+
+  this.getIdentity(function(err, results) {
+    identity = results
+    identity.functionName = process.env.AWS_LAMBDA_FUNCTION_NAME
+    if (identityCallback != undefined) {
+      identityCallback()
+    }
+  })
+
   return function(event, context, callback) {
+    _this.record()
+    var start = new Date().getTime()
+
+    var waitForIdentity = function(callback) {
+      if (identity === undefined) {
+        identityCallback = callback
+      } else {
+        callback()
+      }
+    }
+
+    var endpoint = undefined
+    if (context.aws && context.aws.services) {
+      endpoint = context.aws.services['AWS:Lambda'].endpoint
+    }
+
+    var lambda = new AWS.Lambda({
+      region: process.env.AWS_REGION || 'us-east-1',
+      endpoint: endpoint
+    })
+
+    var sendStats = function(stats, callback) {
+      var params = {
+        FunctionName: '133713371337:lambdo-record-development',
+        InvocationType: 'Event',
+        Payload: new Buffer(JSON.stringify(stats))
+      }
+
+      lambda.invoke(params, function(err, results) {
+        callback()
+      })
+    }
 
     var finish = function(err, results) {
+      _this.makeRecord()
+      _this.cleanup()
+
       end = new Date().getTime()
       duration = end - start
-      console.log("TOTAL DURATION", duration)
-      console.log("RECORDING", this.recording)
-      callback(err, results)
+
+      waitForIdentity(function() {
+        var perf = {
+          end: end,
+          start: start,
+          duration: duration,
+          identity: identity,
+          recording: _this.recording,
+        }
+
+        sendStats(perf, function() {
+          callback(err, results)
+        })
+      })
     }
 
     context.done = finish

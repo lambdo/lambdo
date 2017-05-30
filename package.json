@@ -1,6 +1,6 @@
 {
   "name": "lambdo",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -10,5 +10,8 @@
   "license": "MIT",
   "devDependencies": {
     "tape": "^4.6.3"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.58.0"
   }
 }
