@@ -2,6 +2,8 @@ var os = require('os')
 var AWS = require('aws-sdk')
 var EventEmitter = require('events').EventEmitter
 
+MAX_TIMEOUT = 30 * 60 * 1000
+
 var Lambdo = function(options) {
   _this = this
 
@@ -18,11 +20,8 @@ Lambdo.prototype.record = function() {
 }
 
 Lambdo.prototype.makeRecord = function() {
-  var item = {
-    time: new Date().getTime(),
-    stats: this.collect()
-  }
-
+  var item = this.collect()
+  item.time = new Date().getTime()
   this.recording.push(item)
 }
 
@@ -30,6 +29,11 @@ Lambdo.prototype.onTimeout = function() {
   _this = this
   this.makeRecord()
   this.nextTimeout *= this.multiplier
+  
+  if (this.nextTimeout > MAX_TIMEOUT) {
+    this.nextTimeout = MAX_TIMEOUT
+  }
+
   this.timeout = setTimeout(function() {_this.makeRecord()}, this.nextTimeout)
 }
 
@@ -55,14 +59,33 @@ Lambdo.prototype.collect = function() {
     cpuData.push(data)
   }
 
+  var cpuStats = {}
+  for (var iCPU=0; iCPU<cpuData.length; ++iCPU) {
+    for (var key in cpuData[iCPU].usage) {
+      if (cpuStats[key] === undefined) {
+        cpuStats[key] = 0
+      }
+
+      cpuStats[key] += cpuData[iCPU].usage[key]
+    }
+  }
+
+  for (var key in cpuData[0].usage) {
+    cpuStats[key] = Math.round(cpuStats[key] / cpuData.length)
+  }
+
+
+  var processMem = process.memoryUsage()
+
   var stats = {
-    load: os.loadavg(),
-    cpu: cpuData,
+    cpu: cpuStats,
     mem: {
       free: os.freemem(),
       total: os.totalmem(),
-      process: process.memoryUsage(),
-      provisioned: process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE,
+      processRSS: processMem.rss,
+      provisioned: process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE || 512,
+      processHeapUsed: processMem.heapUsed,
+      processHeapTotal: processMem.heapTotal,
     },
   }
 
@@ -128,7 +151,7 @@ Lambdo.prototype.handler = function(handler) {
 
     var sendStats = function(stats, callback) {
       var params = {
-        FunctionName: '133713371337:lambdo-record-development',
+        FunctionName: '133713371337:lambdo-report-development',
         InvocationType: 'Event',
         Payload: new Buffer(JSON.stringify(stats))
       }
